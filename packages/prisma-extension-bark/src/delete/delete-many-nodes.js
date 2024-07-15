@@ -71,15 +71,19 @@ export default async function ({ where }) {
 	}
 
 	// Delete paths
-	const deleteCounts = await ctx.__$transaction(Array.from(removable_nodes.keys()).map(path => {
-		return ctx.deleteMany({
-			where: {
-				path: {
-					startsWith: path
+	const deleteCounts = await ctx.__$transaction(async (tx) => {
+		const deleteResults = []
+		for (const path of Array.from(removable_nodes.keys())) {
+			deleteResults.push(await ctx.deleteMany({
+				where: {
+					path: {
+						startsWith: path,
+					},
 				},
-			}
-		})
-	}))
+			}))
+		}
+		return deleteResults
+	})
 
 	return deleteCounts?.reduce?.((pV, cV) => ({count: pV.count + cV.count}), {count: 0})
 }

@@ -308,50 +308,44 @@ export default async function ({ node, where, position, reference }) {
 	 * @param {number} opts.new_depth
 	 */
 	async function update_node_and_descendants({ old_path, new_path, new_depth }) {
-		/** @type {Promise<import('@prisma/client').Prisma.PrismaPromise<any>> | any[]}*/
-		const queue = []
+		await ctx.__$transaction(async (tx) => {
+			const moveable_node = await ctx.findFirstOrThrow({
+				where: { path: old_path },
+				select: {
+					path: true,
+					depth: true,
+					numchild: true,
+					id: true,
+				}
+			})
 
-		queue.push(ctx.update({
-			where: { path: old_path },
-			data: {
-				path: new_path,
-				depth: new_depth
-			}
-		}))
+			await ctx.update({
+				where: { path: old_path },
+				data: {
+					path: new_path,
+					depth: new_depth
+				}
+			})
 
-		const moveable_node = await ctx.findFirstOrThrow({
-			where: { path: old_path },
-			select: {
-				path: true,
-				depth: true,
-				numchild: true,
-				id: true,
+			if (moveable_node.numchild !== 0) {
+				const descendants = await ctx.findDescendants({ node: moveable_node, select: { id: true, path: true, depth: true } })
+
+				for (const descendant of descendants) {
+					const new_descendant_path = descendant.path.replace(old_path, new_path)
+
+					const new_descendant_depth = moveable_node.depth !== new_depth ? descendant.depth + new_depth - moveable_node.depth : null
+
+					await ctx.update({
+						where: {
+							id: descendant.id
+						},
+						data: {
+							path: new_descendant_path,
+							...(new_descendant_depth ? { depth: new_descendant_depth } : {})
+						}
+					})
+				}
 			}
 		})
-
-		if (moveable_node.numchild !== 0) {
-			const descendants = await ctx.findDescendants({ node: moveable_node, select: { id: true, path: true, depth: true } })
-
-
-			for (const descendant of descendants) {
-				const new_descendant_path = descendant.path.replace(old_path, new_path)
-
-				const new_descendant_depth = moveable_node.depth !== new_depth ? descendant.depth + new_depth - moveable_node.depth : null
-
-				queue.push(ctx.update({
-					where: {
-						id: descendant.id
-					},
-					data: {
-						path: new_descendant_path,
-						...(new_descendant_depth ? { depth: new_descendant_depth } : {})
-					}
-				}))
-			}
-		}
-
-		// console.log(queue)
-		await ctx.__$transaction(queue)
 	}
-
 }

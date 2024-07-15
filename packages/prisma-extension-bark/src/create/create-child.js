@@ -54,8 +54,8 @@ export default async function ({ node, where, data, ...args }) {
 		const new_step = int2str(1)
 		const new_path = path + new_step
 
-		const [newborn] = await ctx.__$transaction([
-			ctx.create({
+		return await ctx.__$transaction(async (tx) => {
+			const newborn = await ctx.create({
 				data: {
 					...data,
 					path: new_path,
@@ -63,9 +63,9 @@ export default async function ({ node, where, data, ...args }) {
 					numchild: 0
 				},
 				...args
-			}),
+			})
 			// update parent numchild
-			ctx.update({
+			await ctx.update({
 				where: {
 					path: path
 				},
@@ -75,8 +75,7 @@ export default async function ({ node, where, data, ...args }) {
 					}
 				}
 			})
-		])
-
-		return newborn
+			return newborn
+		})
 	}
 }
